@@ -1,0 +1,35 @@
+"""
+Comment system for theTube platform.
+Spec only — no implementation. AI generates the implementation
+by combining this schema with the target platform's spec.
+"""
+
+type Comment {
+  id: ID!
+  post: String!
+  body: String!
+  author: String
+  date: String!
+}
+
+type Query {
+  """Fetch all comments for a post. Returns a file at /comments/{post}.txt"""
+  comments(post: String!): [Comment!]!
+}
+
+type Mutation {
+  """Submit a comment. Batch path: logged via /events/, processed later."""
+  addComment(post: String!, body: String!, author: String): Comment @moderate
+
+  """Submit a comment. Fast path: processed immediately, returns Location."""
+  addCommentRealtime(post: String!, body: String!, author: String): Comment @realtime @auth(role: "user")
+}
+
+"""Process via batch events (/events/). Reviewed before publishing."""
+directive @moderate on FIELD_DEFINITION
+
+"""Process via /fastevent/. Appears immediately."""
+directive @realtime on FIELD_DEFINITION
+
+"""Require authentication. JWT must be present."""
+directive @auth(role: String!) on FIELD_DEFINITION
