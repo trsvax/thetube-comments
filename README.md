@@ -1,10 +1,10 @@
 # thetube-comments
 
-A comment system spec for the theTube platform. No code — just a GraphQL schema that describes what comments do.
+A comment system spec. No code — just a GraphQL schema.
 
 ## How to use
 
-Point AI at this schema and your platform spec. AI generates the implementation native to your site.
+Point AI at this schema and your platform spec:
 
 ```
 "Read the comment schema at github.com/trsvax/thetube-comments/schema.graphql
@@ -12,21 +12,20 @@ and the platform spec at github.com/trsvax/theTube/.kiro/specs/platform/requirem
 Implement comments for my site."
 ```
 
-## Two modes
+AI generates the implementation native to your site. No generic code to override. No compatibility issues.
 
-- **Moderated** (`@moderate`) — comments go to the event log, you review and approve. Batch processing.
-- **Real-time** (`@realtime`) — comments are processed immediately by a Lambda. Sub-second. Requires auth.
+## Operations
 
-## The contract
-
-- Submit: `GET /events/comment/submit?post=<slug>&body=<text>&author=<name>` (moderated)
-- Submit: `POST /fastevent/comment` with JSON body (real-time, returns `Location` header)
-- Read: `GET /comments/<post>.txt` — plain text file, one comment per line
+| Operation | Directive | Description |
+|---|---|---|
+| `addComment` | `@moderate` | Submit for review. Batch processed. |
+| `addCommentRealtime` | `@realtime @auth` | Appears immediately. Requires login. |
+| `comments` | — | Fetch comments for a post. Returns a file. |
 
 ## Storage
 
-Comments are files at URLs. `comments/<post>.txt` in S3. Append-only. The file is the database.
+Comments are files at URLs. `comments/<post>.txt`. Append-only. The file is the database.
 
 ## Schema
 
-See `schema.graphql` for the full type definitions and directives.
+See `schema.graphql` for types, operations, and directives. The platform spec defines how directives map to transport.
