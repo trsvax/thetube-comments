@@ -2,6 +2,10 @@
 Comment system for theTube platform.
 Spec only — no implementation. AI generates the implementation
 by combining this schema with the target platform's spec.
+
+Write endpoint: POST /w/comment/{verb}?{data}
+- No body → 202, logged, batch processed
+- With body → Lambda processes immediately
 """
 
 type Comment {
@@ -18,18 +22,20 @@ type Query {
 }
 
 type Mutation {
-  """Submit a comment. Batch path: logged via /events/, processed later."""
-  addComment(post: String!, body: String!, author: String): Comment @moderate
-
-  """Submit a comment. Fast path: processed immediately, returns Location."""
-  addCommentRealtime(post: String!, body: String!, author: String): Comment @realtime @auth(role: "user")
+  """
+  Submit a comment.
+  URL: POST /w/comment/add?post={post}&body={body}&author={author}
+  No body → batch (moderated, appears after processing)
+  With body → realtime (appears immediately, requires auth)
+  """
+  addComment(post: String!, body: String!, author: String): Comment @moderate @realtime @auth(role: "user")
 }
 
-"""Process via batch events (/events/). Reviewed before publishing."""
+"""Batch path: no request body. Logged by CloudFront, processed later."""
 directive @moderate on FIELD_DEFINITION
 
-"""Process via /fastevent/. Appears immediately."""
+"""Fast path: request body present. Lambda processes immediately."""
 directive @realtime on FIELD_DEFINITION
 
-"""Require authentication. JWT must be present."""
+"""Require authentication for the fast path. JWT must carry the specified role."""
 directive @auth(role: String!) on FIELD_DEFINITION
