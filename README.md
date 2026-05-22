@@ -1,10 +1,10 @@
 # thetube-comments
 
-A comment system spec. No code — just a GraphQL schema.
+A comment system spec for theTube. GraphQL schema + reference client + processor.
 
 ## How to use
 
-Point AI at this schema and your platform spec:
+Point AI at this repo and your platform spec:
 
 ```
 "Read the comment schema at github.com/trsvax/thetube-comments/schema.graphql
@@ -18,14 +18,31 @@ AI generates the implementation native to your site. No generic code to override
 
 | Operation | Directive | Description |
 |---|---|---|
-| `addComment` | `@moderate` | Submit for review. Batch processed. |
-| `addCommentRealtime` | `@realtime @auth` | Appears immediately. Requires login. |
-| `comments` | — | Fetch comments for a post. Returns a file. |
+| `addComment` | `@moderate @rateLimit` | Submit a comment. Always batch (? path). 202 always. |
+| `editComment` | `@auth` | Edit a comment (future). |
+| `deleteComment` | `@auth` | Soft-delete a comment (future). |
+| `comments` | — | Fetch `/comments/{pageUuid}/index.json`. One request, all comments. |
+
+## Write path
+
+```
+POST /w/comment/open?page={pageUuid}  → get token
+POST /w/comment/add?page={uuid}&body=...&author=...&token=...&id=...  → 202
+```
+
+CloudFront Function logs it. Processor (Lambda) reads logs, validates, writes files.
 
 ## Storage
 
-Comments are files at URLs. `comments/<post>.txt`. Append-only. The file is the database.
+Comments are JSON files at URLs:
+
+```
+/comments/{pageUuid}/{requestId}.json   ← individual comment (immutable)
+/comments/{pageUuid}/index.json         ← all comments rolled up (regenerated)
+```
+
+Filenames are CloudFront request IDs — server-generated, unique, untouchable by the client.
 
 ## Schema
 
-See `schema.graphql` for types, operations, and directives. The platform spec defines how directives map to transport.
+See `schema.graphql` for types, operations, and directives. `DESIGN.md` for the full architecture.
