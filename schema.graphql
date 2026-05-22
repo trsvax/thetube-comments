@@ -1,41 +1,99 @@
 """
 Comment system for theTube platform.
-Spec only — no implementation. AI generates the implementation
-by combining this schema with the target platform's spec.
 
-Write endpoint: POST /w/comment/{verb}?{data}
-- No body → 202, logged, batch processed
-- With body → Lambda processes immediately
+Write endpoint: POST /w/comment/{verb}?{params}
+All comments use the ? path (batch). Data in the URL. 202 always.
+The processor is the only writer to /comments/.
+Logs are the source of truth. /comments/ is a projection.
+
+Filenames are CloudFront request IDs (server-generated, unique).
+No sequential numbering. No coordination. Scales horizontally.
 """
 
 type Comment {
-  id: ID!
-  post: String!
+  "CloudFront request ID — the filename"
+  requestId: String!
+  "The comment space (pageUuid from post frontmatter)"
+  page: String!
   body: String!
   author: String
   date: String!
+  "True if soft-deleted"
+  deleted: Boolean
 }
 
 type Query {
-  """Fetch all comments for a post. Returns a file at /comments/{post}.txt"""
-  comments(post: String!): [Comment!]!
+  """
+  Fetch comments for a post.
+  Client fetches /comments/{pageUuid}/index.json — one request, all comments.
+  Behind that URL: static file (MVP) or Lambda merge (future).
+  """
+  comments(page: String!): [Comment!]!
 }
 
 type Mutation {
   """
   Submit a comment.
-  URL: POST /w/comment/add?post={post}&body={body}&author={author}
-  No body → batch (moderated, appears after processing)
-  With body → realtime (appears immediately, requires auth)
+  URL: POST /w/comment/add?page={pageUuid}&body={body}&author={author}&token={token}&id={idempotencyKey}
+
+  Always uses ? path. Always 202. Always batch processed.
+  Trust level determined by token type:
+  - Build-time token (low trust) → moderated
+  - open token (high trust) → written immediately
+
+  Filename assigned by server (CloudFront request ID).
   """
-  addComment(post: String!, body: String!, author: String): Comment @moderate @realtime @auth(role: "user")
+  addComment(
+    page: String!
+    body: String!
+    author: String
+    token: String!
+    id: String!
+  ): Comment @moderate @rateLimit(requests: 5, perSeconds: 60)
+
+  """
+  Edit a comment (future, not in MVP).
+  URL: POST /w/comment/edit?page={pageUuid}&requestId={id}&body={newBody}&token={token}
+  """
+  editComment(
+    page: String!
+    requestId: String!
+    body: String!
+    token: String!
+  ): Comment @auth(role: "user")
+
+  """
+  Delete a comment (future, not in MVP).
+  Writes {"deleted": true}. Log has full history.
+  URL: POST /w/comment/delete?page={pageUuid}&requestId={id}&token={token}
+  """
+  deleteComment(
+    page: String!
+    requestId: String!
+    token: String!
+  ): Comment @auth(role: "user")
 }
 
-"""Batch path: no request body. Logged by CloudFront, processed later."""
+"""
+Open a comment session (future, not in MVP).
+Returns a scoped, signed, high-trust token.
+Fallback: build-time token already in the page.
+URL: GET /w/comment/open?page={pageUuid}
+"""
+type OpenResponse {
+  token: String!
+  id: String!
+  trust: String!
+}
+
+"""Batch path: ? present. Logged by CloudFront, processed by Lambda."""
 directive @moderate on FIELD_DEFINITION
 
-"""Fast path: request body present. Lambda processes immediately."""
-directive @realtime on FIELD_DEFINITION
-
-"""Require authentication for the fast path. JWT must carry the specified role."""
+"""Require authentication. High-trust token or JWT with specified role."""
 directive @auth(role: String!) on FIELD_DEFINITION
+
+"""
+Rate limit declaration. Platform enforces via WAF.
+Declared by the namespace repo, applied by the platform.
+"""
+directive @rateLimit(requests: Int!, perSeconds: Int!) on FIELD_DEFINITION
