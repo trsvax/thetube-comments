@@ -1,0 +1,1 @@
+Updated README to match current design. Removed stale references to addCommentRealtime, .txt files, append-only. Now documents JSON files per comment, /w/ protocol, open+add flow, correct operations table.
