@@ -26,8 +26,8 @@ AI generates the implementation native to your site. No generic code to override
 ## Write path
 
 ```
-POST /w/comment/open?page={pageUuid}  → get token
-POST /w/comment/add?page={uuid}&body=...&author=...&token=...&id=...  → 202
+POST /tube/comment/open?page={pageUuid}  → get token
+POST /tube/comment/add?page={uuid}&body=...&author=...&token=...&id=...  → 202
 ```
 
 CloudFront Function logs it. Processor (Lambda) reads logs, validates, writes files.

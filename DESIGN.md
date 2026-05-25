@@ -7,7 +7,7 @@ How comments work on theTube. This is the design.
 ## The protocol
 
 ```
-POST /w/comment/add?page={pageUuid}&body={body}&author={author}&token={token}&id={idempotencyKey}
+POST /tube/comment/add?page={pageUuid}&body={body}&author={author}&token={token}&id={idempotencyKey}
 ```
 
 - `?` present → CloudFront Function logs it, returns 202. Data captured in access log.
@@ -19,8 +19,8 @@ The client contract: POST, check the status code. 2xx = success. 4xx = your faul
 
 ## Write path
 
-1. Client calls `POST /w/comment/open?page={uuid}` → gets token
-2. Client POSTs to `/w/comment/add?page={uuid}&body=...&token=...&id=...`
+1. Client calls `POST /tube/comment/open?page={uuid}` → gets token
+2. Client POSTs to `/tube/comment/add?page={uuid}&body=...&token=...&id=...`
 3. CloudFront Function validates shape (token present, URL not too long, required params exist)
 4. Returns 202. Done. The data is in the log.
 5. Processor (Lambda, triggered by log delivery) reads log entries, validates, writes files.
@@ -47,7 +47,8 @@ Filenames are CloudFront request IDs — server-generated, unique, untouchable b
 One Lambda per namespace. Lives in this repo. Triggered by CloudFront log delivery to S3.
 
 The processor:
-1. Reads log entries for `/w/comment/*`
+
+1. Reads log entries for `/tube/comment/*`
 2. Validates: token signature, token expiry, pageUuid exists, body size, shape
 3. Deduplicates (by client-generated idempotency key)
 4. Writes `/comments/{pageUuid}/{requestId}.json` (using `If-None-Match: *` — create-only)
@@ -57,14 +58,14 @@ No sequential numbering. No counter. No concurrency constraint. Multiple process
 
 ### What the processor checks
 
-| Check | Rejects |
-|---|---|
-| Token signature valid | Forged tokens |
-| Token not expired | Stale tokens |
-| pageUuid matches a real page | Writes to nonexistent comment spaces |
-| Body under size limit | Oversized payloads |
-| Idempotency key not seen before | Duplicate submissions |
-| Trust level | Routes to moderation or direct write |
+| Check                           | Rejects                              |
+| ------------------------------- | ------------------------------------ |
+| Token signature valid           | Forged tokens                        |
+| Token not expired               | Stale tokens                         |
+| pageUuid matches a real page    | Writes to nonexistent comment spaces |
+| Body under size limit           | Oversized payloads                   |
+| Idempotency key not seen before | Duplicate submissions                |
+| Trust level                     | Routes to moderation or direct write |
 
 ---
 
@@ -86,14 +87,14 @@ The client doesn't know or care what generates the response. It's a namespace. T
 
 The client always calls `open` before writing. The trust level is determined by what `open` returns — which depends on the backend implementation at that time.
 
-| Level | `open` returns | What it proves | Processor behavior |
-|---|---|---|---|
-| Low | Static JWT (CloudFront Function) | Client called open | Moderated (held for review) |
-| Medium | Scoped token (Lambda, checks user cookie) | Client is logged in | Auto-filtered, written faster |
-| High | Per-request token (Lambda, validates session) | Client asked permission now | Written immediately |
-| Admin | Admin token (Lambda, passkey challenge) | Verified admin identity | Full access, sync response |
+| Level  | `open` returns                                | What it proves              | Processor behavior            |
+| ------ | --------------------------------------------- | --------------------------- | ----------------------------- |
+| Low    | Static JWT (CloudFront Function)              | Client called open          | Moderated (held for review)   |
+| Medium | Scoped token (Lambda, checks user cookie)     | Client is logged in         | Auto-filtered, written faster |
+| High   | Per-request token (Lambda, validates session) | Client asked permission now | Written immediately           |
+| Admin  | Admin token (Lambda, passkey challenge)       | Verified admin identity     | Full access, sync response    |
 
-The client code never changes. It always calls `POST /w/comment/open?page={uuid}`, gets a token, includes it in the write. What happens behind `open` evolves:
+The client code never changes. It always calls `POST /tube/comment/open?page={uuid}`, gets a token, includes it in the write. What happens behind `open` evolves:
 
 - **MVP**: CloudFront Function returns a static JWT. Everyone gets low trust.
 - **Add user auth**: Lambda checks for user cookie, returns medium/high trust if present, low trust if not.
@@ -106,7 +107,7 @@ Trust can also be earned by behavior — comment history, account age, reputatio
 ### `open` — the platform primitive
 
 ```
-POST /w/comment/open?page={pageUuid}
+POST /tube/comment/open?page={pageUuid}
 → 200 {"token": "...", "trust": "low|medium|high"}
 ```
 
@@ -129,6 +130,7 @@ MVP: the CloudFront Function returns a static JWT — `HMAC(secret, namespace + 
 Later: Lambda does real work behind the same endpoint. Checks cookies, validates sessions, computes reputation. Client doesn't change.
 
 The edge can reject `open` based on namespace policy:
+
 - `/tube/comment/open` → anyone gets a token (anonymous comments allowed)
 - `/tube/admin/open` → no admin cookie? 403. Never issues a token.
 
@@ -140,10 +142,10 @@ Every namespace gets `open` for free (platform default). Override with a custom 
 
 ## The `?` as security boundary
 
-| Path | Data location | Token location | Logged |
-|---|---|---|---|
-| `?` present | Query string | Query string | Yes — full URL in access log |
-| No `?` | Request body | Auth header/body | URL only — body/headers not in log |
+| Path        | Data location | Token location   | Logged                             |
+| ----------- | ------------- | ---------------- | ---------------------------------- |
+| `?` present | Query string  | Query string     | Yes — full URL in access log       |
+| No `?`      | Request body  | Auth header/body | URL only — body/headers not in log |
 
 Comments always use `?` → tokens are in the log (disposable, low/medium trust).
 Admin uses no `?` → credentials stay off disk (high trust, never logged).
@@ -215,26 +217,28 @@ New namespace, no declared limit? Gets the platform default. Safe by default. Op
 
 ## Spam defense layers
 
-| Layer | What it does |
-|---|---|
-| WAF rate limit | Caps requests per IP |
-| Edge shape check | Rejects missing token, oversized URLs |
-| Build-time token | Proves client loaded the page |
-| Processor validation | Token signature, expiry, page exists |
-| Moderation | Low-trust comments held for review |
-| Logs | Full audit trail, can replay/rebuild |
+| Layer                | What it does                          |
+| -------------------- | ------------------------------------- |
+| WAF rate limit       | Caps requests per IP                  |
+| Edge shape check     | Rejects missing token, oversized URLs |
+| Build-time token     | Proves client loaded the page         |
+| Processor validation | Token signature, expiry, page exists  |
+| Moderation           | Low-trust comments held for review    |
+| Logs                 | Full audit trail, can replay/rebuild  |
 
 ---
 
 ## Client behavior
 
 Submit:
+
 - POST to `/tube/comment/add?...`
 - If 2xx → show "comment submitted" (optimistic display for submitter)
 - If network error → show "couldn't submit, try again" (form is the retry mechanism)
 - No localStorage queue, no service worker, no background sync
 
 Read:
+
 - Fetch `/comments/{pageUuid}/index.json` — one request, all comments
 - All responses cached at CloudFront edge
 
@@ -277,6 +281,7 @@ What we build first:
 The client always calls `open`. MVP `open` is just the CloudFront Function returning a static JWT. No Lambda needed for auth yet.
 
 What we don't build yet:
+
 - `open` Lambda (upgrade when you want per-user trust levels)
 - Lambda@Edge on read path (upgrade when you want fresher index.json)
 - Edit/delete (not needed until there are comments to edit)
@@ -289,6 +294,7 @@ What we don't build yet:
 ## Scaling path
 
 The MVP scales already:
+
 - Write path: CloudFront handles millions of POSTs
 - Read path: `index.json` is a cached static file
 - Processor: no concurrency constraint (request IDs = no coordination)

@@ -1,7 +1,7 @@
 """
 Comment system for theTube platform.
 
-Write endpoint: POST /w/comment/{verb}?{params}
+Write endpoint: POST /tube/comment/{verb}?{params}
 All comments use the ? path (batch). Data in the URL. 202 always.
 The processor is the only writer to /comments/.
 Logs are the source of truth. /comments/ is a projection.
@@ -34,7 +34,7 @@ type Query {
 type Mutation {
   """
   Submit a comment.
-  URL: POST /w/comment/add?page={pageUuid}&body={body}&author={author}&token={token}&id={idempotencyKey}
+  URL: POST /tube/comment/add?page={pageUuid}&body={body}&author={author}&token={token}&id={idempotencyKey}
 
   Always uses ? path. Always 202. Always batch processed.
   Trust level determined by token type:
@@ -53,7 +53,7 @@ type Mutation {
 
   """
   Edit a comment (future, not in MVP).
-  URL: POST /w/comment/edit?page={pageUuid}&requestId={id}&body={newBody}&token={token}
+  URL: POST /tube/comment/edit?page={pageUuid}&requestId={id}&body={newBody}&token={token}
   """
   editComment(
     page: String!
@@ -65,7 +65,7 @@ type Mutation {
   """
   Delete a comment (future, not in MVP).
   Writes {"deleted": true}. Log has full history.
-  URL: POST /w/comment/delete?page={pageUuid}&requestId={id}&token={token}
+  URL: POST /tube/comment/delete?page={pageUuid}&requestId={id}&token={token}
   """
   deleteComment(
     page: String!
@@ -78,7 +78,7 @@ type Mutation {
 Open a comment session (future, not in MVP).
 Returns a scoped, signed, high-trust token.
 Fallback: build-time token already in the page.
-URL: GET /w/comment/open?page={pageUuid}
+URL: GET /tube/comment/open?page={pageUuid}
 """
 type OpenResponse {
   token: String!

@@ -19,11 +19,19 @@ export function useQuery<T>(url: string): QueryResult<T> {
     setLoading(true);
     fetch(url)
       .then((res) => (res.ok ? res.json() : null))
-      .then((d) => { setData(d); setLoading(false); })
-      .catch(() => { setError(true); setLoading(false); });
+      .then((d) => {
+        setData(d);
+        setLoading(false);
+      })
+      .catch(() => {
+        setError(true);
+        setLoading(false);
+      });
   }, [url]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   return { data, loading, error, refetch: fetchData };
 }
@@ -40,17 +48,26 @@ interface MutateResult {
   trust: string | null;
 }
 
-export function useMutate(endpoint: string, openParams: MutateOptions): MutateResult {
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+export function useMutate(
+  endpoint: string,
+  openParams: MutateOptions,
+): MutateResult {
+  const [status, setStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
   const [trust, setTrust] = useState<string | null>(null);
   const fdRef = useRef<{ token: string; trust: string } | null>(null);
 
   const open = async () => {
     if (fdRef.current) return fdRef.current;
     const params = new URLSearchParams(
-      Object.entries(openParams).filter((e): e is [string, string] => e[1] != null),
+      Object.entries(openParams).filter(
+        (e): e is [string, string] => e[1] != null,
+      ),
     );
-    const res = await fetch(`/tube/${openParams.ns}/open?${params}`, { method: "POST" });
+    const res = await fetch(`/tube/${openParams.ns}/open?${params}`, {
+      method: "POST",
+    });
     if (!res.ok) throw new Error("open failed");
     const fd = await res.json();
     fdRef.current = fd;

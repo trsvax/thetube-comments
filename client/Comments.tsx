@@ -86,8 +86,7 @@ export default function Comments({ pageUuid }: { pageUuid: string }) {
           <button
             type="submit"
             className="comment-submit"
-            disabled={status === "loading" || !body.trim()}
-          >
+            disabled={status === "loading" || !body.trim()}>
             {status === "loading" ? "Submitting..." : "Submit"}
           </button>
           {status === "success" && (
