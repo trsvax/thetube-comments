@@ -20,9 +20,9 @@ export default function Comments({ pageUuid }: { pageUuid: string }) {
     `/comments/${pageUuid}/index.json`,
   );
 
-  // useMutate calls /w/comment/open internally on first mutate()
+  // useMutate calls /tube/comment/open internally on first mutate()
   // caches the fd (token) for subsequent calls
-  const { mutate, status, trust } = useMutate("/w/comment/add", {
+  const { mutate, status, trust } = useMutate("/tube/comment/add", {
     ns: "comment",
     page: pageUuid,
   });

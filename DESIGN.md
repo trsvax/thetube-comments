@@ -110,12 +110,12 @@ POST /w/comment/open?page={pageUuid}
 → 200 {"token": "...", "trust": "low|medium|high"}
 ```
 
-`open` is a verb in the namespace: `/w/{namespace}/open`. One Lambda (or CloudFront Function) handles all namespaces. The namespace is read from the path. The params are namespace-specific — `open` doesn't validate them, it just signs whatever's there into the token. The processor validates the params later.
+`open` is a verb in the namespace: `/tube/{namespace}/open`. One Lambda (or CloudFront Function) handles all namespaces. The namespace is read from the path. The params are namespace-specific — `open` doesn't validate them, it just signs whatever's there into the token. The processor validates the params later.
 
 ```
-POST /w/comment/open?page={uuid}  → token: {ns:"comment", page:"{uuid}", trust:"low", exp:...}
-POST /w/admin/open                → token: {ns:"admin", trust:"admin", exp:...}
-POST /w/contact/open?form={id}    → token: {ns:"contact", form:"{id}", trust:"low", exp:...}
+POST /tube/comment/open?page={uuid}  → token: {ns:"comment", page:"{uuid}", trust:"low", exp:...}
+POST /tube/admin/open                → token: {ns:"admin", trust:"admin", exp:...}
+POST /tube/contact/open?form={id}    → token: {ns:"contact", form:"{id}", trust:"low", exp:...}
 ```
 
 `open` is privilege escalation. Everyone starts with nothing. Call `open`, get whatever trust level the system decides you deserve:
@@ -129,8 +129,8 @@ MVP: the CloudFront Function returns a static JWT — `HMAC(secret, namespace + 
 Later: Lambda does real work behind the same endpoint. Checks cookies, validates sessions, computes reputation. Client doesn't change.
 
 The edge can reject `open` based on namespace policy:
-- `/w/comment/open` → anyone gets a token (anonymous comments allowed)
-- `/w/admin/open` → no admin cookie? 403. Never issues a token.
+- `/tube/comment/open` → anyone gets a token (anonymous comments allowed)
+- `/tube/admin/open` → no admin cookie? 403. Never issues a token.
 
 Per-site policy: some sites return 403 on `open` if not logged in. The platform is the same. The policy is per-deployment.
 
@@ -199,14 +199,14 @@ If the processor is compromised: nuke `/comments/`, fix it, replay the logs. Ful
 
 ## Rate limiting
 
-Platform default: WAF rate limit on all of `/w/*` — 10/min per IP. Every namespace gets this automatically. No namespace goes live without a rate limit.
+Platform default: WAF rate limit on all of `/tube/*` — 10/min per IP. Every namespace gets this automatically. No namespace goes live without a rate limit.
 
 Namespaces can override:
 
 ```
-/w/*           → default: 10/min per IP (platform)
-/w/comment/*   → override: 5/min per IP (declared by comment repo)
-/w/admin/*     → override: no limit (declared by admin repo, requires auth)
+/tube/*           → default: 10/min per IP (platform)
+/tube/comment/*   → override: 5/min per IP (declared by comment repo)
+/tube/admin/*     → override: no limit (declared by admin repo, requires auth)
 ```
 
 New namespace, no declared limit? Gets the platform default. Safe by default. Opt out explicitly.
@@ -229,7 +229,7 @@ New namespace, no declared limit? Gets the platform default. Safe by default. Op
 ## Client behavior
 
 Submit:
-- POST to `/w/comment/add?...`
+- POST to `/tube/comment/add?...`
 - If 2xx → show "comment submitted" (optimistic display for submitter)
 - If network error → show "couldn't submit, try again" (form is the retry mechanism)
 - No localStorage queue, no service worker, no background sync
@@ -244,11 +244,11 @@ The submitter's client renders the comment optimistically. Everyone else sees it
 
 ## Edit and delete
 
-New verbs on `/w/comment/`:
+New verbs on `/tube/comment/`:
 
 ```
-POST /w/comment/edit?page={uuid}&requestId={id}&body={newBody}&token=...
-POST /w/comment/delete?page={uuid}&requestId={id}&token=...
+POST /tube/comment/edit?page={uuid}&requestId={id}&body={newBody}&token=...
+POST /tube/comment/delete?page={uuid}&requestId={id}&token=...
 ```
 
 The processor replays events in order. The file on S3 reflects the final state. Delete writes `{"deleted": true}`. The log has the full history.
@@ -269,9 +269,9 @@ The logs are the source of truth. `/comments/` is a projection — a materialize
 
 What we build first:
 
-1. **CloudFront Function** on `/w/*` — handles `open` (returns static JWT), shape validation on writes (return 202), rejects garbage (403/413)
+1. **CloudFront Function** on `/tube/*` — handles `open` (returns static JWT), shape validation on writes (return 202), rejects garbage (403/413)
 2. **One processor Lambda** — triggered by log delivery, validates, writes comment files, regenerates `index.json`
-3. **WAF rate limit** on `/w/*` (platform default) + `/w/comment/*` override
+3. **WAF rate limit** on `/tube/*` (platform default) + `/tube/comment/*` override
 4. **Client JS** — calls `open`, gets token, POSTs to submit, fetches `index.json` to read, optimistic display
 
 The client always calls `open`. MVP `open` is just the CloudFront Function returning a static JWT. No Lambda needed for auth yet.

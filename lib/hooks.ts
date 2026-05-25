@@ -50,7 +50,7 @@ export function useMutate(endpoint: string, openParams: MutateOptions): MutateRe
     const params = new URLSearchParams(
       Object.entries(openParams).filter((e): e is [string, string] => e[1] != null),
     );
-    const res = await fetch(`/w/${openParams.ns}/open?${params}`, { method: "POST" });
+    const res = await fetch(`/tube/${openParams.ns}/open?${params}`, { method: "POST" });
     if (!res.ok) throw new Error("open failed");
     const fd = await res.json();
     fdRef.current = fd;
